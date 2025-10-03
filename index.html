@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Minitorneo — Equipos (Avanzado)</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="header">
+        <div class="logo">F</div>
+        <div class="title">
+          <h1>Minitorneo Futsal — Equipos</h1>
+          <p class="small">
+            Agrega, edita o elimina equipos (≤16). Cambios guardados en
+            Supabase.
+          </p>
+        </div>
+        <div class="nav">
+          <a href="/calenderio.html"
+            ><button class="btn ghost">Calendario</button></a
+          >
+          <a href="/clasificacion.html"
+            ><button class="btn">Clasificación</button></a
+          >
+        </div>
+      </div>
+
+      <div class="card">
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          "
+        >
+          <div><strong>Equipos</strong></div>
+          <div class="controls">
+            <button id="btnAdd" class="btn">➕ Agregar equipo</button>
+          </div>
+        </div>
+
+        <div class="table-wrap" style="margin-top: 12px">
+          <table id="tblEquipos">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Nombre</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="footer">
+        Usa la pestaña Calendario para generar el fixture y registrar
+        resultados.
+      </div>
+    </div>
+
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+    <script src="/main.js"></script>
+
+    <script>
+      // Page logic using window.App
+      (function () {
+        const App = window.App;
+        const tbl = document.querySelector("#tblEquipos tbody");
+        const btnAdd = document.getElementById("btnAdd");
+
+        // modal creation (reuse style from earlier)
+        function createModal() {
+          const m = document.createElement("div");
+          m.className = "modal";
+          m.innerHTML = `<div class="modal-box">
+        <h3 id="mTitle">Agregar equipo</h3>
+        <div class="form-row"><input id="mName" placeholder="Nombre del equipo"></div>
+        <div class="modal-actions">
+          <button id="mCancel" class="btn ghost">Cancelar</button>
+          <button id="mDelete" class="btn ghost" style="display:none;background:#c0392b;color:white">Eliminar</button>
+          <button id="mSave" class="btn">Guardar</button>
+        </div>
+      </div>`;
+          document.body.appendChild(m);
+          return m;
+        }
+
+        const modal = createModal();
+        const mSave = modal.querySelector("#mSave");
+        const mCancel = modal.querySelector("#mCancel");
+        const mDelete = modal.querySelector("#mDelete");
+        const mTitle = modal.querySelector("#mTitle");
+        const mName = modal.querySelector("#mName");
+        let currentId = null;
+
+        mCancel.onclick = () => modal.classList.remove("show");
+        mSave.onclick = async () => {
+          const nombre = mName.value.trim();
+          if (!nombre) return alert("Escribe nombre");
+          if (currentId) {
+            const { error } = await App.supabase
+              .from("equipos")
+              .update({ nombre })
+              .eq("id", currentId);
+            if (error) return alert("Error al actualizar: " + error.message);
+          } else {
+            const { error } = await App.supabase
+              .from("equipos")
+              .insert([{ nombre }]);
+            if (error) return alert("Error al crear: " + error.message);
+          }
+          modal.classList.remove("show");
+          load();
+        };
+        mDelete.onclick = async () => {
+          if (!currentId) return;
+          if (!confirm("Eliminar equipo y partidos relacionados?")) return;
+          const { error } = await App.supabase
+            .from("equipos")
+            .delete()
+            .eq("id", currentId);
+          if (error) return alert("Error: " + error.message);
+          modal.classList.remove("show");
+          load();
+        };
+
+        function openAdd() {
+          currentId = null;
+          mTitle.textContent = "Agregar equipo";
+          mName.value = "";
+          mDelete.style.display = "none";
+          modal.classList.add("show");
+          mName.focus();
+        }
+        function openEdit(id, name) {
+          currentId = id;
+          mTitle.textContent = "Editar equipo";
+          mName.value = name;
+          mDelete.style.display = "inline-block";
+          modal.classList.add("show");
+          mName.focus();
+        }
+
+        async function load() {
+          tbl.innerHTML =
+            '<tr><td colspan="3" class="small">Cargando...</td></tr>';
+          const teams = await App.fetchTeams();
+          if (!teams || teams.length === 0) {
+            tbl.innerHTML =
+              '<tr><td colspan="3" class="small">No hay equipos</td></tr>';
+            return;
+          }
+          tbl.innerHTML = "";
+          teams.forEach((t) => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<td>${t.id}</td>
+          <td><input class="input" value="${escapeHtml(t.nombre)}" data-id="${
+              t.id
+            }" style="width:100%"/></td>
+          <td style="width:220px">
+            <button class="btn" data-save="${t.id}">Guardar nombre</button>
+            <button class="btn ghost" data-edit="${t.id}">Editar</button>
+          </td>`;
+            tbl.appendChild(tr);
+          });
+          // events
+          tbl.querySelectorAll("button[data-save]").forEach((b) => {
+            b.addEventListener("click", async () => {
+              const id = +b.dataset.save;
+              const input = tbl.querySelector(`input[data-id="${id}"]`);
+              const nuevo = input.value.trim();
+              if (!nuevo) return alert("Nombre vacío");
+              const { error } = await App.supabase
+                .from("equipos")
+                .update({ nombre: nuevo })
+                .eq("id", id);
+              if (error) return alert("Error: " + error.message);
+              alert("Actualizado");
+              load();
+            });
+          });
+          tbl.querySelectorAll("button[data-edit]").forEach((b) => {
+            b.addEventListener("click", () => {
+              const id = +b.dataset.edit;
+              const input = tbl.querySelector(`input[data-id="${id}"]`);
+              openEdit(id, input.value);
+            });
+          });
+        }
+
+        btnAdd.addEventListener("click", openAdd);
+
+        // initial load
+        load();
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Minitorneo — Calendario</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="header">
+        <div class="logo">F</div>
+        <div class="title">
+          <h1>Generar Calendario & Registrar Resultados</h1>
+          <p class="small">
+            Configura días/hora y cuántos partidos por día. Luego genera el
+            calendario round-robin.
+          </p>
+        </div>
+        <div class="nav">
+          <a href="/index.html"><button class="btn ghost">Equipos</button></a>
+          <a href="/clasificacion.html"
+            ><button class="btn">Clasificación</button></a
+          >
+        </div>
+      </div>
+
+      <div class="card">
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          "
+        >
+          <div><strong>Configuración</strong></div>
+          <div class="controls">
+            <button id="btnPreview" class="btn ghost">
+              Vista previa fechas
+            </button>
+            <button id="btnGenerate" class="btn">Generar calendario</button>
+          </div>
+        </div>
+
+        <div style="margin-top: 12px">
+          <div class="form-row">
+            <label style="width: 170px">Fecha inicio:</label>
+            <input
+              type="date"
+              id="startDate"
+              class="input"
+              value="2025-10-01"
+            />
+          </div>
+          <div class="form-row">
+            <label style="width: 170px">Hora inicio (primer partido):</label>
+            <input type="time" id="startTime" class="input" value="20:30" />
+          </div>
+          <div class="form-row">
+            <label style="width: 170px">Intervalo (min):</label>
+            <input
+              type="number"
+              id="interval"
+              class="input"
+              value="30"
+              min="10"
+              max="180"
+            />
+          </div>
+          <div class="form-row">
+            <label style="width: 170px">Partidos por día:</label>
+            <input
+              type="number"
+              id="matchesPerDay"
+              class="input"
+              value="2"
+              min="1"
+              max="6"
+            />
+          </div>
+          <div class="form-row">
+            <label style="width: 170px">Días de la semana:</label>
+            <div style="display: flex; gap: 6px">
+              <label
+                ><input type="checkbox" class="weekday" value="1" /> Lun</label
+              >
+              <label
+                ><input type="checkbox" class="weekday" value="2" /> Mar</label
+              >
+              <label
+                ><input type="checkbox" class="weekday" value="3" checked />
+                Mié</label
+              >
+              <label
+                ><input type="checkbox" class="weekday" value="4" /> Jue</label
+              >
+              <label
+                ><input type="checkbox" class="weekday" value="5" checked />
+                Vie</label
+              >
+              <label
+                ><input type="checkbox" class="weekday" value="6" /> Sáb</label
+              >
+              <label
+                ><input type="checkbox" class="weekday" value="0" /> Dom</label
+              >
+            </div>
+          </div>
+        </div>
+
+        <div class="table-wrap" style="margin-top: 12px">
+          <table id="tblMatchPreview">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Fecha</th>
+                <th>Hora</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <hr style="margin-top: 12px" />
+
+        <div class="table-wrap" style="margin-top: 12px">
+          <table id="tblMatches">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Jornada</th>
+                <th>Fecha</th>
+                <th>Hora</th>
+                <th>Local</th>
+                <th>G</th>
+                <th>Visitante</th>
+                <th>G</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SDK + main -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+    <script src="/main.js"></script>
+
+    <script>
+      (function () {
+        const App = window.App;
+        const startDate = q("#startDate");
+        const startTime = q("#startTime");
+        const interval = q("#interval");
+        const matchesPerDay = q("#matchesPerDay");
+        const weekdaysCheckbox = Array.from(qAll(".weekday"));
+        const previewTbody = q("#tblMatchPreview tbody");
+        const tblMatches = q("#tblMatches tbody");
+        const btnPreview = q("#btnPreview");
+        const btnGenerate = q("#btnGenerate");
+
+        // helper to read weekdays
+        function readWeekdays() {
+          return weekdaysCheckbox
+            .filter((cb) => cb.checked)
+            .map((cb) => Number(cb.value));
+        }
+
+        // preview
+        btnPreview.addEventListener("click", async () => {
+          const teams = await App.fetchTeams();
+          if (!teams || teams.length < 2) {
+            alert("Al menos 2 equipos");
+            return;
+          }
+          const pairs = App.generateScheduleDates ? null : null; // we'll use main functions
+          const total = Math.floor((teams.length * (teams.length - 1)) / 2);
+          const wk = readWeekdays();
+          if (wk.length === 0) {
+            alert("Selecciona al menos un día de la semana");
+            return;
+          }
+          const dates = App.generateScheduleDates(
+            total,
+            wk,
+            startDate.value,
+            startTime.value,
+            Number(matchesPerDay.value),
+            Number(interval.value)
+          );
+          previewTbody.innerHTML = "";
+          dates.slice(0, 200).forEach((d, i) => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<td>${i + 1}</td><td>${d.date}</td><td>${
+              d.time
+            }</td>`;
+            previewTbody.appendChild(tr);
+          });
+          alert("Vista previa generada: " + dates.length + " slots.");
+        });
+
+        // generate calendar and save to DB
+        btnGenerate.addEventListener("click", async () => {
+          try {
+            const wk = readWeekdays();
+            if (wk.length === 0) {
+              alert("Selecciona al menos un día de la semana");
+              return;
+            }
+            const opts = {
+              weekdays: wk,
+              startDate: startDate.value,
+              startTime: startTime.value,
+              matchesPerDay: Number(matchesPerDay.value),
+              intervalMinutes: Number(interval.value),
+            };
+            if (
+              !confirm(
+                "Generar calendario con la configuración actual y guardarlo en la base?"
+              )
+            )
+              return;
+            const count = await App.createCalendarFromTeams(opts);
+            alert("Calendario creado con " + count + " partidos.");
+            loadMatches();
+          } catch (err) {
+            alert("Error: " + (err.message || err));
+            console.error(err);
+          }
+        });
+
+        // load existing matches
+        async function loadMatches() {
+          const matches = await App.fetchMatches();
+          tblMatches.innerHTML = "";
+          if (!matches || matches.length === 0) {
+            tblMatches.innerHTML =
+              '<tr><td colspan="9" class="small">No hay partidos</td></tr>';
+            return;
+          }
+          matches.forEach((m) => {
+            const local = m.local ? m.local.nombre : "TBD";
+            const vis = m.visitante ? m.visitante.nombre : "TBD";
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<td>${m.id}</td><td>${m.jornada || ""}</td><td>${
+              m.fecha || ""
+            }</td><td>${m.hora || ""}</td><td>${escapeHtml(local)}</td>
+          <td><input type="number" min="0" data-id="${
+            m.id
+          }" data-field="goles_local" value="${
+              m.goles_local === null ? "" : m.goles_local
+            }" class="input" style="width:70px"/></td>
+          <td>${escapeHtml(vis)}</td>
+          <td><input type="number" min="0" data-id="${
+            m.id
+          }" data-field="goles_visitante" value="${
+              m.goles_visitante === null ? "" : m.goles_visitante
+            }" class="input" style="width:70px"/></td>
+          <td><button class="btn" data-save="${m.id}">Guardar</button></td>`;
+            tblMatches.appendChild(tr);
+          });
+          // attach
+          tblMatches.querySelectorAll("button[data-save]").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+              try {
+                const id = +btn.dataset.save;
+                const inputs = Array.from(
+                  tblMatches.querySelectorAll("input")
+                ).filter((i) => +i.dataset.id === id);
+                const payload = {};
+                inputs.forEach(
+                  (i) =>
+                    (payload[i.dataset.field] =
+                      i.value === "" ? null : +i.value)
+                );
+                await App.saveResult(
+                  id,
+                  payload.goles_local,
+                  payload.goles_visitante
+                );
+                alert("Resultado guardado");
+                loadMatches();
+              } catch (err) {
+                alert("Error: " + (err.message || err));
+                console.error(err);
+              }
+            });
+          });
+        }
+
+        // initial
+        loadMatches();
+      })();
+    </script>
+  </body>
+</html>

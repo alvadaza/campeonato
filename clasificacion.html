@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Minitorneo — Clasificación</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="header">
+        <div class="logo">F</div>
+        <div class="title">
+          <h1>Clasificación & Eliminatorias</h1>
+          <p class="small">
+            Tabla dinámica. Genera eliminatoria automática cuando desees.
+          </p>
+        </div>
+        <div class="nav">
+          <a href="/index.html"><button class="btn ghost">Equipos</button></a>
+          <a href="/calenderio.html"><button class="btn">Calendario</button></a>
+        </div>
+      </div>
+
+      <div class="card">
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          "
+        >
+          <div><strong>Tabla de posiciones</strong></div>
+          <div class="controls">
+            <button id="btnRefresh" class="btn ghost">Refrescar</button>
+            <button id="btnGenKnock" class="btn">Generar eliminatoria</button>
+          </div>
+        </div>
+
+        <div class="table-wrap" style="margin-top: 12px">
+          <table id="tblClas">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Equipo</th>
+                <th>PJ</th>
+                <th>PG</th>
+                <th>PE</th>
+                <th>PP</th>
+                <th>GF</th>
+                <th>GC</th>
+                <th>DG</th>
+                <th>Pts</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 12px">
+        <h3>Eliminatorias creadas</h3>
+        <div class="table-wrap">
+          <table id="tblKnock">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Fecha</th>
+                <th>Hora</th>
+                <th>Local</th>
+                <th>G</th>
+                <th>Visitante</th>
+                <th>G</th>
+                <th>Fase</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="footer">
+        Criterios de desempate: Puntos → Diferencia de goles → Goles a favor.
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+    <script src="/main.js"></script>
+
+    <script>
+      (function () {
+        const App = window.App;
+        const tblClas = q("#tblClas tbody");
+        const tblKnock = q("#tblKnock tbody");
+        const btnRefresh = q("#btnRefresh");
+        const btnGenKnock = q("#btnGenKnock");
+
+        async function render() {
+          tblClas.innerHTML =
+            '<tr><td colspan="10" class="small">Cargando...</td></tr>';
+          const arr = await App.computeClassification();
+          if (!arr || arr.length === 0) {
+            tblClas.innerHTML =
+              '<tr><td colspan="10" class="small">No hay datos</td></tr>';
+            return;
+          }
+          tblClas.innerHTML = "";
+          arr.forEach((r, i) => {
+            tblClas.innerHTML += `<tr><td>${i + 1}</td><td>${escapeHtml(
+              r.nombre
+            )}</td><td>${r.PJ}</td><td>${r.PG}</td><td>${r.PE}</td><td>${
+              r.PP
+            }</td><td>${r.GF}</td><td>${r.GC}</td><td>${r.DG}</td><td><b>${
+              r.Pts
+            }</b></td></tr>`;
+          });
+          loadKnock();
+        }
+
+        async function loadKnock() {
+          const matches = await App.fetchMatches();
+          const knock = matches.filter((m) => m.fase && m.fase !== "grupos");
+          tblKnock.innerHTML = "";
+          if (!knock || knock.length === 0) {
+            tblKnock.innerHTML =
+              '<tr><td colspan="8" class="small">No hay eliminatorias creadas</td></tr>';
+            return;
+          }
+          knock.forEach((k) => {
+            const local = k.local ? k.local.nombre : "TBD";
+            const vis = k.visitante ? k.visitante.nombre : "TBD";
+            tblKnock.innerHTML += `<tr><td>${k.id}</td><td>${
+              k.fecha || ""
+            }</td><td>${k.hora || ""}</td><td>${escapeHtml(local)}</td><td>${
+              k.goles_local === null ? "" : k.goles_local
+            }</td><td>${escapeHtml(vis)}</td><td>${
+              k.goles_visitante === null ? "" : k.goles_visitante
+            }</td><td>${k.fase || ""}</td></tr>`;
+          });
+        }
+
+        btnRefresh.addEventListener("click", render);
+        btnGenKnock.addEventListener("click", async () => {
+          if (!confirm("Generar eliminatoria automática según clasificación?"))
+            return;
+          try {
+            const count = await App.generateEliminatoriaFromStandings();
+            alert("Eliminatoria creada: " + count + " partidos.");
+            render();
+          } catch (err) {
+            alert("Error: " + (err.message || err));
+            console.error(err);
+          }
+        });
+
+        // init
+        render();
+      })();
+    </script>
+  </body>
+</html>
